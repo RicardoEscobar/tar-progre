@@ -6,26 +6,23 @@ import getpass
 import paramiko
 from tqdm import tqdm
 
+from tarprogre.controller.ssh_manager import get_ssh_client, create_remote_dir
 
-def ship(source: Path, destination: Path, host: str, user: str, password: str) -> Path:
+
+def ship(client: paramiko.SSHClient, source: Path, destination: Path) -> Path:
     """Ship the source tarball to the destination host.
     Args:
+        client: The ssh client.
         source: The source tarball.
         destination: The destination directory.
-        host: The destination host.
-        user: The destination user.
-        password: The destination password.
     Returns:
         The destination tarball.
     """
-    # Create the ssh client.
-    client = get_ssh_client(host, user, password)
-
     # Create the sftp client.
     sftp = client.open_sftp()
 
     # Create the destination directory.
-    sftp.mkdir(str(destination.parent), mode=0o755)
+    create_remote_dir(client, destination.parent)
 
     # Create the progress bar.
     progress = tqdm(
@@ -33,7 +30,7 @@ def ship(source: Path, destination: Path, host: str, user: str, password: str) -
     )
 
     # Ship the source tarball to the destination host.
-    with sftp.file(str(destination), "wb") as file:
+    with sftp.file(destination.as_posix(), "wb") as file:
         with open(source, "rb") as source_file:
             for data in iter(lambda: source_file.read(10485760), b""):
                 file.write(data)
@@ -48,33 +45,19 @@ def ship(source: Path, destination: Path, host: str, user: str, password: str) -
     return destination
 
 
-def get_ssh_client(host: str, user: str, password: str) -> paramiko.SSHClient:
-    """Get an ssh connection to the host.
-    Args:
-        host: The destination host.
-        user: The destination user.
-        password: The destination password.
-    Returns:
-        The ssh connection.
-    """
-    # Create the ssh client.
-    client = paramiko.SSHClient()
-    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    client.connect(hostname=host, username=user, password=password)
-    return client
-
-
 def main():
     """Main function."""
     # Demo tarball shipping.
     source = Path("F:/FIRECUDA2/backup/WAIFUS/waifus.tar")
     # Destination path is posix path for the linux server.
-    destination = Path("home\\jorge\\waifus.tar")
+    destination = Path("/home/jorge/waifus/waifus.tar")
     host = "192.168.1.253"
     user = "jorge"
     password = getpass.getpass("Password: ")
+    # Create ssh client.
+    client = get_ssh_client(host, user, password)
     # Ship the tarball to the destination host.
-    ship(source, destination, host, user, password)
+    ship(client, source, destination)
 
 
 if __name__ == "__main__":
